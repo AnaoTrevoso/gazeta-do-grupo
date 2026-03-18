@@ -13,7 +13,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getFirestore, collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, increment, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, increment, addDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyA3m4vIPzIJ4vSnq8RjVU_gmXXw8U8bbO8",
@@ -27,10 +27,6 @@
     // ⬇ MESMA LISTA DO index.html
     const ADMINS = [
       "miguellimadequadros@gmail.com",
-        "matueyeahyeah@gmail.com",
-        "globb236@gmail.com",
-        "huehuepug@gmail.com",
-        "mafiabryk@gmail.com"
     ];
 
     const EXP = 86400000;
@@ -45,10 +41,13 @@
     let isAdmin = false;
     let commentsUnsub = null;
     let currentPostId = null;
+    let userAvatars = {};
+    let allPosts = [];
 
     function hcol(s) { let h = 0; for (let c of s) h = c.charCodeAt(0) + ((h << 5) - h); return COLORS[Math.abs(h) % COLORS.length] }
     function esc(s) { return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>") }
     function isActive(ts) { return Date.now() - ts < EXP }
+    function compress(d, w = 900, q = .72) { return new Promise(r => { const i = new Image; i.onload = () => { const s = Math.min(w / i.width, 1), c = document.createElement("canvas"); c.width = Math.round(i.width * s); c.height = Math.round(i.height * s); c.getContext("2d").drawImage(i, 0, 0, c.width, c.height); r(c.toDataURL("image/jpeg", q)) }; i.src = d }) }
     function ago(ts) { const m = Math.floor((Date.now() - ts) / 60000); if (m < 1) return "agora mesmo"; if (m < 60) return m + "min atrás"; const h = Math.floor(m / 60); return h < 24 ? h + "h atrás" : "ontem" }
     function fmtDate(ts) { return new Date(ts).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) }
     function fmtDay(ts) { return new Date(ts).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }) }
@@ -63,14 +62,26 @@
       isAdmin = ADMINS.includes(user.email);
       const uname = user.displayName || user.email.split("@")[0];
       document.getElementById("userLabel").textContent = uname;
-      document.getElementById("userAvatar").textContent = uname.charAt(0).toUpperCase();
-      document.getElementById("userAvatar").style.background = hcol(uname);
+      const ua = document.getElementById("userAvatar");
+      ua.innerHTML = uname.charAt(0).toUpperCase();
+      ua.style.background = hcol(uname);
       if (isAdmin) document.getElementById("adminBadge").style.display = "inline-flex";
+
+      onSnapshot(collection(db, "users"), snap => {
+        snap.docs.forEach(d => userAvatars[d.id] = d.data().photoBase64);
+        if (currentUser && userAvatars[currentUser.uid]) {
+          const aua = document.getElementById("userAvatar");
+          aua.innerHTML = `<img src="${userAvatars[currentUser.uid]}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+          aua.style.background = "none";
+        }
+        renderAll(allPosts);
+        if (currentPostId) window._openComments(currentPostId);
+      });
 
       const q = query(collection(db, "posts"), orderBy("timestamp", "desc"));
       onSnapshot(q, snap => {
-        const posts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        renderAll(posts);
+        allPosts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderAll(allPosts);
       }, err => { document.getElementById("loadMsg").textContent = "Erro ao carregar."; console.error(err) });
     });
 
@@ -97,7 +108,9 @@
           ${p.image ? `<div class="card-img"><img src="${p.image}" loading="lazy" alt=""/>${ativo ? "" : ` <div class="expired-stamp">Expirou</div>`}</div>` : ""}
           <div class="card-body">
             <div class="card-meta">
-              <div class="avatar" style="background:${c}">${ini}</div>
+              <div class="avatar" style="background:${c}">
+                ${userAvatars[p.uid] ? `<img src="${userAvatars[p.uid]}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : ini}
+              </div>
               <div><span class="author">${esc(p.author)}</span><span class="meta-time">${fmtDate(p.timestamp)}</span></div>
               ${ativo ? `<span class="badge badge--active">Ativo</span>` : `<span class="badge badge--expired">Arquivado</span>`}
             </div>
@@ -148,7 +161,9 @@
         list.innerHTML = comments.map(c => {
           const col = hcol(c.author || "?");
           return `<div class="cm-item" id="cm-${c.id}">
-          <div class="avatar-sm" style="background:${col}">${(c.author || "?").charAt(0).toUpperCase()}</div>
+          <div class="avatar-sm" style="background:${col}">
+            ${(c.uid && userAvatars[c.uid]) ? `<img src="${userAvatars[c.uid]}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : (c.author || "?").charAt(0).toUpperCase()}
+          </div>
           <div class="cm-bubble">
             <div class="cm-bubble-top"><span class="cm-author">${esc(c.author || "Anônimo")}</span>${isAdmin ? `<button class="cm-del" onclick="window._deleteComment('${postId}','${c.id}')">✕</button>` : ""}</div>
             <span class="cm-text">${esc(c.text)}</span>
@@ -187,6 +202,30 @@
     };
 
     document.addEventListener("DOMContentLoaded", () => {
+      const uaBtn = document.getElementById("userAvatar");
+      const uaInp = document.createElement("input");
+      uaInp.type = "file";
+      uaInp.accept = "image/*";
+      uaInp.style.display = "none";
+      document.body.appendChild(uaInp);
+      
+      uaBtn.style.cursor = "pointer";
+      uaBtn.title = "Mudar foto de perfil";
+      uaBtn.onclick = () => uaInp.click();
+      
+      uaInp.onchange = async e => {
+        const f = e.target.files[0]; if (!f) return;
+        uaBtn.innerHTML = "..."; 
+        const reader = new FileReader();
+        reader.onload = async ev => {
+          const base64 = await compress(ev.target.result, 150, 0.7);
+          try {
+            await setDoc(doc(db, "users", currentUser.uid), { photoBase64: base64 }, { merge: true });
+          } catch (err) { alert("Erro ao salvar foto: " + err.message); }
+        };
+        reader.readAsDataURL(f);
+      };
+
       document.getElementById("cmOverlay").onclick = closeComments;
       document.getElementById("cmClose").onclick = closeComments;
       document.getElementById("cmSendBtn").onclick = window._sendComment;
