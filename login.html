@@ -1,143 +1,302 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-<meta name="theme-color" content="#0D1117"/>
-<title>Entrar — GAZETA</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0D1117" />
+  <title>Entrar — GAZETA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyA3m4vIPzIJ4vSnq8RjVU_gmXXw8U8bbO8",
-    authDomain: "gazeta-ddefe.firebaseapp.com",
-    projectId: "gazeta-ddefe",
-    storageBucket: "gazeta-ddefe.firebasestorage.app",
-    messagingSenderId: "684275554779",
-    appId: "1:684275554779:web:6f218c0a46c8be66feaffe"
-  };
+    const firebaseConfig = {
+      apiKey: "AIzaSyA3m4vIPzIJ4vSnq8RjVU_gmXXw8U8bbO8",
+      authDomain: "gazeta-ddefe.firebaseapp.com",
+      projectId: "gazeta-ddefe",
+      storageBucket: "gazeta-ddefe.firebasestorage.app",
+      messagingSenderId: "684275554779",
+      appId: "1:684275554779:web:6f218c0a46c8be66feaffe"
+    };
 
-  const app  = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
 
-  // Se já está logado, vai direto pro site
-  onAuthStateChanged(auth, user => {
-    if(user) window.location.href = "index.html";
-  });
-
-  let mode = "login"; // "login" ou "register"
-
-  function setMode(m){
-    mode = m;
-    document.getElementById("nameField").style.display = m === "register" ? "block" : "none";
-    document.getElementById("submitBtn").textContent   = m === "login" ? "Entrar" : "Criar conta";
-    document.getElementById("formTitle").textContent   = m === "login" ? "Entrar na Gazeta" : "Criar conta";
-    document.getElementById("toggleMsg").innerHTML     = m === "login"
-      ? `Não tem conta? <button class="link-btn" onclick="window._setMode('register')">Cadastre-se</button>`
-      : `Já tem conta? <button class="link-btn" onclick="window._setMode('login')">Entrar</button>`;
-    document.getElementById("errBox").style.display = "none";
-  }
-  window._setMode = setMode;
-
-  document.addEventListener("DOMContentLoaded", () => {
-    setMode("login");
-
-    document.getElementById("authForm").addEventListener("submit", async e => {
-      e.preventDefault();
-      const email    = document.getElementById("emailInput").value.trim();
-      const password = document.getElementById("passInput").value;
-      const name     = document.getElementById("nameInput").value.trim();
-      const btn      = document.getElementById("submitBtn");
-      const err      = document.getElementById("errBox");
-
-      err.style.display = "none";
-      btn.disabled = true;
-      btn.textContent = "Aguarde...";
-
-      try {
-        if(mode === "login"){
-          await signInWithEmailAndPassword(auth, email, password);
-        } else {
-          if(!name){ showErr("Digite seu nome."); btn.disabled=false; btn.textContent="Criar conta"; return; }
-          const cred = await createUserWithEmailAndPassword(auth, email, password);
-          await updateProfile(cred.user, { displayName: name });
-        }
-        window.location.href = "index.html";
-      } catch(ex) {
-        const msgs = {
-          "auth/user-not-found":       "E-mail não encontrado.",
-          "auth/wrong-password":       "Senha incorreta.",
-          "auth/invalid-credential":   "E-mail ou senha incorretos.",
-          "auth/email-already-in-use": "Este e-mail já está cadastrado.",
-          "auth/weak-password":        "A senha deve ter pelo menos 6 caracteres.",
-          "auth/invalid-email":        "E-mail inválido.",
-          "auth/too-many-requests":    "Muitas tentativas. Tente mais tarde.",
-        };
-        showErr(msgs[ex.code] || "Erro: " + ex.message);
-        btn.disabled = false;
-        btn.textContent = mode === "login" ? "Entrar" : "Criar conta";
-      }
+    // Se já está logado, vai direto pro site
+    onAuthStateChanged(auth, user => {
+      if (user) window.location.href = "index.html";
     });
 
-    function showErr(msg){
-      const e = document.getElementById("errBox");
-      e.textContent = msg;
-      e.style.display = "block";
+    let mode = "login"; // "login" ou "register"
+
+    function setMode(m) {
+      mode = m;
+      document.getElementById("nameField").style.display = m === "register" ? "block" : "none";
+      document.getElementById("submitBtn").textContent = m === "login" ? "Entrar" : "Criar conta";
+      document.getElementById("formTitle").textContent = m === "login" ? "Entrar na Gazeta" : "Criar conta";
+      document.getElementById("toggleMsg").innerHTML = m === "login"
+        ? `Não tem conta? <button class="link-btn" onclick="window._setMode('register')">Cadastre-se</button>`
+        : `Já tem conta? <button class="link-btn" onclick="window._setMode('login')">Entrar</button>`;
+      document.getElementById("errBox").style.display = "none";
     }
-  });
-</script>
-<style>
-:root{--ink:#0D1117;--ink2:#2C3038;--ink3:#737880;--rule:#E2E5E9;--rule2:#F0F2F4;--paper:#FFFFFF;--accent:#C0392B;--serif:'Libre Baskerville',Georgia,serif;--sans:'Source Sans 3',system-ui,sans-serif;--safe-b:env(safe-area-inset-bottom,0px);--safe-t:env(safe-area-inset-top,0px)}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{font-size:16px;-webkit-text-size-adjust:100%}
-body{font-family:var(--sans);background:var(--ink);min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;padding-top:var(--safe-t);padding-bottom:var(--safe-b)}
-.logo-wrap{text-align:center;margin-bottom:32px}
-.logo-name{font-family:var(--serif);font-size:32px;font-weight:700;color:#fff;letter-spacing:-0.5px}
-.logo-rule{width:40px;height:3px;background:var(--accent);margin:8px auto 0}
-.logo-tag{font-size:11px;color:#8A9099;letter-spacing:2px;text-transform:uppercase;margin-top:6px}
-.card{background:var(--paper);border-radius:16px;padding:28px 24px;width:100%;max-width:400px}
-.form-title{font-family:var(--serif);font-size:20px;font-weight:700;color:var(--ink);margin-bottom:20px;text-align:center}
-.field{margin-bottom:16px}
-.field label{display:block;font-size:10px;font-weight:700;letter-spacing:1.8px;color:var(--ink3);text-transform:uppercase;margin-bottom:7px}
-.field input{width:100%;border:1.5px solid var(--rule);border-radius:10px;padding:13px 15px;font-size:16px;color:var(--ink);background:var(--paper);outline:none;transition:border-color .15s;-webkit-appearance:none;font-family:var(--sans)}
-.field input:focus{border-color:var(--ink)}
-.err{background:#FEF0EE;border:1px solid #F5C5C0;border-radius:8px;padding:11px 14px;font-size:13px;color:var(--accent);margin-bottom:16px;display:none}
-.submit-btn{width:100%;background:var(--ink);color:#fff;border:none;border-radius:12px;padding:15px;font-family:var(--serif);font-weight:700;font-size:17px;cursor:pointer;transition:background .15s}
-.submit-btn:active{transform:scale(.98)}
-.submit-btn:disabled{background:#9AA0AA;cursor:not-allowed}
-.toggle-msg{text-align:center;margin-top:16px;font-size:13px;color:var(--ink3)}
-.link-btn{background:none;border:none;color:var(--accent);font-weight:700;font-size:13px;cursor:pointer;font-family:var(--sans);padding:0;text-decoration:underline}
-.divider{height:1px;background:var(--rule);margin:20px 0}
-</style>
+    window._setMode = setMode;
+
+    document.addEventListener("DOMContentLoaded", () => {
+      setMode("login");
+
+      document.getElementById("authForm").addEventListener("submit", async e => {
+        e.preventDefault();
+        const email = document.getElementById("emailInput").value.trim();
+        const password = document.getElementById("passInput").value;
+        const name = document.getElementById("nameInput").value.trim();
+        const btn = document.getElementById("submitBtn");
+        const err = document.getElementById("errBox");
+
+        err.style.display = "none";
+        btn.disabled = true;
+        btn.textContent = "Aguarde...";
+
+        try {
+          if (mode === "login") {
+            await signInWithEmailAndPassword(auth, email, password);
+          } else {
+            if (!name) { showErr("Digite seu nome."); btn.disabled = false; btn.textContent = "Criar conta"; return; }
+            const cred = await createUserWithEmailAndPassword(auth, email, password);
+            await updateProfile(cred.user, { displayName: name });
+          }
+          window.location.href = "index.html";
+        } catch (ex) {
+          const msgs = {
+            "auth/user-not-found": "E-mail não encontrado.",
+            "auth/wrong-password": "Senha incorreta.",
+            "auth/invalid-credential": "E-mail ou senha incorretos.",
+            "auth/email-already-in-use": "Este e-mail já está cadastrado.",
+            "auth/weak-password": "A senha deve ter pelo menos 6 caracteres.",
+            "auth/invalid-email": "E-mail inválido.",
+            "auth/too-many-requests": "Muitas tentativas. Tente mais tarde.",
+          };
+          showErr(msgs[ex.code] || "Erro: " + ex.message);
+          btn.disabled = false;
+          btn.textContent = mode === "login" ? "Entrar" : "Criar conta";
+        }
+      });
+
+      function showErr(msg) {
+        const e = document.getElementById("errBox");
+        e.textContent = msg;
+        e.style.display = "block";
+      }
+    });
+  </script>
+  <style>
+    :root {
+      --ink: #0D1117;
+      --ink2: #2C3038;
+      --ink3: #737880;
+      --rule: #E2E5E9;
+      --rule2: #F0F2F4;
+      --paper: #FFFFFF;
+      --accent: #C0392B;
+      --serif: 'Libre Baskerville', Georgia, serif;
+      --sans: 'Source Sans 3', system-ui, sans-serif;
+      --safe-b: env(safe-area-inset-bottom, 0px);
+      --safe-t: env(safe-area-inset-top, 0px)
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    html {
+      font-size: 16px;
+      -webkit-text-size-adjust: 100%
+    }
+
+    body {
+      font-family: var(--sans);
+      background: var(--ink);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      padding-top: var(--safe-t);
+      padding-bottom: var(--safe-b)
+    }
+
+    .logo-wrap {
+      text-align: center;
+      margin-bottom: 32px
+    }
+
+    .logo-name {
+      font-family: var(--serif);
+      font-size: 32px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.5px
+    }
+
+    .logo-rule {
+      width: 40px;
+      height: 3px;
+      background: var(--accent);
+      margin: 8px auto 0
+    }
+
+    .logo-tag {
+      font-size: 11px;
+      color: #8A9099;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-top: 6px
+    }
+
+    .card {
+      background: var(--paper);
+      border-radius: 16px;
+      padding: 28px 24px;
+      width: 100%;
+      max-width: 400px
+    }
+
+    .form-title {
+      font-family: var(--serif);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 20px;
+      text-align: center
+    }
+
+    .field {
+      margin-bottom: 16px
+    }
+
+    .field label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.8px;
+      color: var(--ink3);
+      text-transform: uppercase;
+      margin-bottom: 7px
+    }
+
+    .field input {
+      width: 100%;
+      border: 1.5px solid var(--rule);
+      border-radius: 10px;
+      padding: 13px 15px;
+      font-size: 16px;
+      color: var(--ink);
+      background: var(--paper);
+      outline: none;
+      transition: border-color .15s;
+      -webkit-appearance: none;
+      font-family: var(--sans)
+    }
+
+    .field input:focus {
+      border-color: var(--ink)
+    }
+
+    .err {
+      background: #FEF0EE;
+      border: 1px solid #F5C5C0;
+      border-radius: 8px;
+      padding: 11px 14px;
+      font-size: 13px;
+      color: var(--accent);
+      margin-bottom: 16px;
+      display: none
+    }
+
+    .submit-btn {
+      width: 100%;
+      background: var(--ink);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 15px;
+      font-family: var(--serif);
+      font-weight: 700;
+      font-size: 17px;
+      cursor: pointer;
+      transition: background .15s
+    }
+
+    .submit-btn:active {
+      transform: scale(.98)
+    }
+
+    .submit-btn:disabled {
+      background: #9AA0AA;
+      cursor: not-allowed
+    }
+
+    .toggle-msg {
+      text-align: center;
+      margin-top: 16px;
+      font-size: 13px;
+      color: var(--ink3)
+    }
+
+    .link-btn {
+      background: none;
+      border: none;
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: var(--sans);
+      padding: 0;
+      text-decoration: underline
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--rule);
+      margin: 20px 0
+    }
+  </style>
 </head>
+
 <body>
-<div class="logo-wrap">
-  <div class="logo-name">GAZETA</div>
-  <div class="logo-rule"></div>
-  <div class="logo-tag">Portal de Notícias</div>
-</div>
-<div class="card">
-  <h2 class="form-title" id="formTitle">Entrar na Gazeta</h2>
-  <form id="authForm" novalidate>
-    <div class="field" id="nameField" style="display:none">
-      <label for="nameInput">Seu nome</label>
-      <input type="text" id="nameInput" placeholder="Como quer ser chamado?" maxlength="40" autocapitalize="words"/>
-    </div>
-    <div class="field">
-      <label for="emailInput">E-mail</label>
-      <input type="email" id="emailInput" placeholder="seu@email.com" autocomplete="email"/>
-    </div>
-    <div class="field">
-      <label for="passInput">Senha</label>
-      <input type="password" id="passInput" placeholder="Mínimo 6 caracteres" autocomplete="current-password"/>
-    </div>
-    <div class="err" id="errBox"></div>
-    <button type="submit" class="submit-btn" id="submitBtn">Entrar</button>
-  </form>
-  <p class="toggle-msg" id="toggleMsg"></p>
-</div>
+  <div class="logo-wrap">
+    <div class="logo-name">GAZETA</div>
+    <div class="logo-rule"></div>
+    <div class="logo-tag">Portal de Notícias</div>
+  </div>
+  <div class="card">
+    <h2 class="form-title" id="formTitle">Entrar na Gazeta</h2>
+    <form id="authForm" novalidate>
+      <div class="field" id="nameField" style="display:none">
+        <label for="nameInput">Seu nome</label>
+        <input type="text" id="nameInput" placeholder="Como quer ser chamado?" maxlength="40" autocapitalize="words" />
+      </div>
+      <div class="field">
+        <label for="emailInput">E-mail</label>
+        <input type="email" id="emailInput" placeholder="seu@email.com" autocomplete="email" />
+      </div>
+      <div class="field">
+        <label for="passInput">Senha</label>
+        <input type="password" id="passInput" placeholder="Mínimo 6 caracteres" autocomplete="current-password" />
+      </div>
+      <div class="err" id="errBox"></div>
+      <button type="submit" class="submit-btn" id="submitBtn">Entrar</button>
+    </form>
+    <p class="toggle-msg" id="toggleMsg"></p>
+  </div>
 </body>
+
 </html>
