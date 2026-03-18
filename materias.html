@@ -1,1039 +1,339 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#0D1117" />
-  <title>Matérias — GAZETA</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;500;600;700&display=swap"
-    rel="stylesheet" />
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getFirestore, collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, increment, addDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#0D1117"/>
+<title>Matérias — GAZETA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, collection, query, orderBy, onSnapshot, deleteDoc, doc, updateDoc, increment, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyA3m4vIPzIJ4vSnq8RjVU_gmXXw8U8bbO8",
-      authDomain: "gazeta-ddefe.firebaseapp.com",
-      projectId: "gazeta-ddefe",
-      storageBucket: "gazeta-ddefe.firebasestorage.app",
-      messagingSenderId: "684275554779",
-      appId: "1:684275554779:web:6f218c0a46c8be66feaffe"
-    };
+  const firebaseConfig = {
+    apiKey: "AIzaSyA3m4vIPzIJ4vSnq8RjVU_gmXXw8U8bbO8",
+    authDomain: "gazeta-ddefe.firebaseapp.com",
+    projectId: "gazeta-ddefe",
+    storageBucket: "gazeta-ddefe.firebasestorage.app",
+    messagingSenderId: "684275554779",
+    appId: "1:684275554779:web:6f218c0a46c8be66feaffe"
+  };
 
-    // ⬇ MESMA LISTA DO index.html
-    const ADMINS = [
-      "miguellimadequadros@gmail.com",
-      "matueyeahyeah@gmail.com",
-      "globb236@gmail.com",
-      "huehuepug@gmail.com",
-      "mafiabryk@gmail.com"
-    ];
+  // ⬇ MESMA LISTA DO index.html
+  const ADMINS = [
+    "miguellimadequadros@gmail.com",
+  ];
 
-    const EXP = 86400000;
-    const COLORS = ["#C0392B", "#1A6B7A", "#4A7C59", "#2E5FA3", "#7D3C98", "#B7770D", "#1F618D", "#566573"];
-    const LIKES_KEY = "gazeta-likes-v1";
+  const EXP    = 86400000;
+  const COLORS = ["#C0392B","#1A6B7A","#4A7C59","#2E5FA3","#7D3C98","#B7770D","#1F618D","#566573"];
+  const LIKES_KEY = "gazeta-likes-v1";
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
+  const app  = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db   = getFirestore(app);
 
-    let currentUser = null;
-    let isAdmin = false;
-    let commentsUnsub = null;
-    let currentPostId = null;
+  let currentUser = null;
+  let isAdmin     = false;
+  let commentsUnsub = null;
+  let currentPostId = null;
 
-    function hcol(s) { let h = 0; for (let c of s) h = c.charCodeAt(0) + ((h << 5) - h); return COLORS[Math.abs(h) % COLORS.length] }
-    function compress(d, w = 900, q = .72) { return new Promise(r => { const i = new Image; i.onload = () => { const s = Math.min(w / i.width, 1), c = document.createElement("canvas"); c.width = Math.round(i.width * s); c.height = Math.round(i.height * s); c.getContext("2d").drawImage(i, 0, 0, c.width, c.height); r(c.toDataURL("image/jpeg", q)) }; i.src = d }) }
-    function esc(s) { return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>") }
-    function isActive(ts) { return Date.now() - ts < EXP }
-    function ago(ts) { const m = Math.floor((Date.now() - ts) / 60000); if (m < 1) return "agora mesmo"; if (m < 60) return m + "min atrás"; const h = Math.floor(m / 60); return h < 24 ? h + "h atrás" : "ontem" }
-    function fmtDate(ts) { return new Date(ts).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) }
-    function fmtDay(ts) { return new Date(ts).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }) }
-    function dayKey(ts) { const d = new Date(ts); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` }
-    function getLiked() { try { return JSON.parse(localStorage.getItem(LIKES_KEY) || "{}") } catch { return {} } }
-    function setLiked(id) { const l = getLiked(); l[id] = true; localStorage.setItem(LIKES_KEY, JSON.stringify(l)) }
-    function hasLiked(id) { return !!getLiked()[id] }
+  function hcol(s){let h=0;for(let c of s)h=c.charCodeAt(0)+((h<<5)-h);return COLORS[Math.abs(h)%COLORS.length]}
+  function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>")}
+  function isActive(ts){return Date.now()-ts<EXP}
+  function ago(ts){const m=Math.floor((Date.now()-ts)/60000);if(m<1)return"agora mesmo";if(m<60)return m+"min atrás";const h=Math.floor(m/60);return h<24?h+"h atrás":"ontem"}
+  function fmtDate(ts){return new Date(ts).toLocaleDateString("pt-BR",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}
+  function fmtDay(ts){return new Date(ts).toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"})}
+  function dayKey(ts){const d=new Date(ts);return`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`}
+  function getLiked(){try{return JSON.parse(localStorage.getItem(LIKES_KEY)||"{}")}catch{return{}}}
+  function setLiked(id){const l=getLiked();l[id]=true;localStorage.setItem(LIKES_KEY,JSON.stringify(l))}
+  function hasLiked(id){return !!getLiked()[id]}
 
-    onAuthStateChanged(auth, async user => {
-      if (!user) { window.location.href = "login.html"; return; }
-      currentUser = user;
-      isAdmin = ADMINS.includes(user.email);
-      const uname = user.displayName || user.email.split("@")[0];
-      document.getElementById("userLabel").textContent = uname;
+  onAuthStateChanged(auth, user => {
+    if(!user){ window.location.href="login.html"; return; }
+    currentUser = user;
+    isAdmin = ADMINS.includes(user.email);
+    const uname = user.displayName||user.email.split("@")[0];
+    document.getElementById("userLabel").textContent = uname;
+    document.getElementById("userAvatar").textContent = uname.charAt(0).toUpperCase();
+    document.getElementById("userAvatar").style.background = hcol(uname);
+    if(isAdmin) document.getElementById("adminBadge").style.display="inline-flex";
 
-      document.getElementById("userAvatar").title = "Mudar foto de perfil";
-      document.getElementById("userAvatar").style.cursor = "pointer";
+    const q=query(collection(db,"posts"),orderBy("timestamp","desc"));
+    onSnapshot(q,snap=>{
+      const posts=snap.docs.map(d=>({id:d.id,...d.data()}));
+      renderAll(posts);
+    },err=>{document.getElementById("loadMsg").textContent="Erro ao carregar.";console.error(err)});
+  });
 
-      let customAvatar = null;
-      try {
-        const uDoc = await getDoc(doc(db, "users", user.uid));
-        if (uDoc.exists() && uDoc.data().avatar) {
-          customAvatar = uDoc.data().avatar;
-        } else {
-          const pDoc = await getDoc(doc(db, "posts", "avatar_" + user.uid));
-          if (pDoc.exists() && pDoc.data().avatar) customAvatar = pDoc.data().avatar;
-        }
-      } catch (e) { }
-      window._customAvatar = customAvatar || user.photoURL;
-
-      if (customAvatar) {
-        document.getElementById("userAvatar").innerHTML = `<img src="${customAvatar}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
-        document.getElementById("userAvatar").style.background = "transparent";
-      } else {
-        document.getElementById("userAvatar").textContent = uname.charAt(0).toUpperCase();
-        document.getElementById("userAvatar").style.background = hcol(uname);
-      }
-
-      if (isAdmin) document.getElementById("adminBadge").style.display = "inline-flex";
-
-      const q = query(collection(db, "posts"), orderBy("timestamp", "desc"));
-      onSnapshot(q, snap => {
-        const posts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        renderAll(posts);
-      }, err => { document.getElementById("loadMsg").textContent = "Erro ao carregar."; console.error(err) });
-    });
-
-    function renderAll(posts) {
-      const grid = document.getElementById("grid");
-      document.getElementById("totalCount").textContent = posts.length;
-      document.getElementById("activeCount").textContent = posts.filter(p => isActive(p.timestamp)).length;
-      document.getElementById("loadMsg").style.display = "none";
-      if (!posts.length) {
-        grid.innerHTML = `<div class="empty"><div class="empty-ico">📭</div><h2 class="empty-ttl">Nenhuma matéria ainda</h2><p class="empty-sub">Quando algo for publicado,<br>aparece aqui para sempre.</p><a href="index.html" class="empty-cta">← Voltar ao início</a></div>`;
-        return;
-      }
-      const grupos = {};
-      posts.forEach(p => { const k = dayKey(p.timestamp); if (!grupos[k]) grupos[k] = { label: fmtDay(p.timestamp), posts: [] }; grupos[k].posts.push(p) });
-      let html = "", idx = 0;
-      Object.values(grupos).forEach(grupo => {
-        html += `<div class="day-group"><div class="day-label"><span class="day-label-text">${grupo.label}</span><span class="day-label-count">${grupo.posts.length} publicaç${grupo.posts.length === 1 ? "ão" : "ões"}</span></div><div class="cards-wrap">`;
-        grupo.posts.forEach(p => {
-          const c = hcol(p.author), ini = p.author.charAt(0).toUpperCase(), ativo = isActive(p.timestamp);
-          const dl = idx < 8 ? `animation-delay:${idx * .05}s;opacity:0` : "";
-          const liked = hasLiked(p.id), likeCount = p.likes || 0, commentCount = p.commentCount || 0;
-          idx++;
-          html += `<article class="card ${ativo ? "" : "card--expired"}" id="card-${p.id}" style="${dl}">
-          ${p.image ? `<div class="card-img"><img src="${p.image}" loading="lazy" alt=""/>${ativo ? "" : ` <div class="expired-stamp">Expirou</div>`}</div>` : ""}
+  function renderAll(posts){
+    const grid=document.getElementById("grid");
+    document.getElementById("totalCount").textContent=posts.length;
+    document.getElementById("activeCount").textContent=posts.filter(p=>isActive(p.timestamp)).length;
+    document.getElementById("loadMsg").style.display="none";
+    if(!posts.length){
+      grid.innerHTML=`<div class="empty"><div class="empty-ico">📭</div><h2 class="empty-ttl">Nenhuma matéria ainda</h2><p class="empty-sub">Quando algo for publicado,<br>aparece aqui para sempre.</p><a href="index.html" class="empty-cta">← Voltar ao início</a></div>`;
+      return;
+    }
+    const grupos={};
+    posts.forEach(p=>{const k=dayKey(p.timestamp);if(!grupos[k])grupos[k]={label:fmtDay(p.timestamp),posts:[]};grupos[k].posts.push(p)});
+    let html="",idx=0;
+    Object.values(grupos).forEach(grupo=>{
+      html+=`<div class="day-group"><div class="day-label"><span class="day-label-text">${grupo.label}</span><span class="day-label-count">${grupo.posts.length} publicaç${grupo.posts.length===1?"ão":"ões"}</span></div><div class="cards-wrap">`;
+      grupo.posts.forEach(p=>{
+        const c=hcol(p.author),ini=p.author.charAt(0).toUpperCase(),ativo=isActive(p.timestamp);
+        const dl=idx<8?`animation-delay:${idx*.05}s;opacity:0`:"";
+        const liked=hasLiked(p.id),likeCount=p.likes||0,commentCount=p.commentCount||0;
+        idx++;
+        html+=`<article class="card ${ativo?"":"card--expired"}" id="card-${p.id}" style="${dl}">
+          ${p.image?`<div class="card-img"><img src="${p.image}" loading="lazy" alt=""/>${ativo?"":` <div class="expired-stamp">Expirou</div>`}</div>`:""}
           <div class="card-body">
             <div class="card-meta">
-              ${p.authorPic ? `<div class="avatar"><img src="${p.authorPic}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;"></div>` : `<div class="avatar" style="background:${c}">${ini}</div>`}
+              <div class="avatar" style="background:${c}">${ini}</div>
               <div><span class="author">${esc(p.author)}</span><span class="meta-time">${fmtDate(p.timestamp)}</span></div>
-              ${ativo ? `<span class="badge badge--active">Ativo</span>` : `<span class="badge badge--expired">Arquivado</span>`}
+              ${ativo?`<span class="badge badge--active">Ativo</span>`:`<span class="badge badge--expired">Arquivado</span>`}
             </div>
-            ${p.description ? `<p class="card-text">${esc(p.description)}</p>` : ""}
+            ${p.description?`<p class="card-text">${esc(p.description)}</p>`:""}
             <div class="card-actions">
-              <button class="action-btn ${liked ? "action-btn--liked" : ""}" onclick="window._like('${p.id}',this)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="${liked ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                <span>${likeCount > 0 ? likeCount : ""}</span>
+              <button class="action-btn ${liked?"action-btn--liked":""}" onclick="window._like('${p.id}',this)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="${liked?"currentColor":"none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                <span>${likeCount>0?likeCount:""}</span>
               </button>
               <button class="action-btn" onclick="window._openComments('${p.id}')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                <span>${commentCount > 0 ? commentCount : ""}</span>
+                <span>${commentCount>0?commentCount:""}</span>
               </button>
-              ${isAdmin ? `<button class="action-btn action-btn--delete" onclick="window._deletePost('${p.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg> Excluir</button>` : ""}
+              ${isAdmin?`<button class="action-btn action-btn--delete" onclick="window._deletePost('${p.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg> Excluir</button>`:""}
             </div>
           </div>
         </article>`;
-        });
-        html += `</div></div>`;
       });
-      grid.innerHTML = html;
-    }
+      html+=`</div></div>`;
+    });
+    grid.innerHTML=html;
+  }
 
-    window._like = async function (id, btn) {
-      if (hasLiked(id)) return;
-      setLiked(id); btn.classList.add("action-btn--liked"); btn.querySelector("svg").setAttribute("fill", "currentColor");
-      try { await updateDoc(doc(db, "posts", id), { likes: increment(1) }); const s = btn.querySelector("span"); s.textContent = (parseInt(s.textContent) || 0) + 1 } catch (e) { console.error(e) }
-    };
+  window._like=async function(id,btn){
+    if(hasLiked(id))return;
+    setLiked(id);btn.classList.add("action-btn--liked");btn.querySelector("svg").setAttribute("fill","currentColor");
+    try{await updateDoc(doc(db,"posts",id),{likes:increment(1)});const s=btn.querySelector("span");s.textContent=(parseInt(s.textContent)||0)+1}catch(e){console.error(e)}
+  };
 
-    window._deletePost = async function (id) {
-      if (!isAdmin) return;
-      if (!confirm("Excluir este post permanentemente?")) return;
-      try { await deleteDoc(doc(db, "posts", id)); const el = document.getElementById("card-" + id); if (el) { el.style.opacity = "0"; el.style.transition = "opacity .3s"; setTimeout(() => el.remove(), 300) } } catch (e) { alert("Erro: " + e.message) }
-    };
+  window._deletePost=async function(id){
+    if(!isAdmin)return;
+    if(!confirm("Excluir este post permanentemente?"))return;
+    try{await deleteDoc(doc(db,"posts",id));const el=document.getElementById("card-"+id);if(el){el.style.opacity="0";el.style.transition="opacity .3s";setTimeout(()=>el.remove(),300)}}catch(e){alert("Erro: "+e.message)}
+  };
 
-    window._openComments = function (postId) {
-      currentPostId = postId;
-      document.getElementById("commentsList").innerHTML = `<p class="cm-loading">Carregando...</p>`;
-      document.getElementById("cmOverlay").classList.add("on");
-      document.getElementById("cmSheet").classList.add("on");
-      document.body.style.overflow = "hidden";
-      if (commentsUnsub) commentsUnsub();
-      const q = query(collection(db, "posts", postId, "comments"), orderBy("timestamp", "asc"));
-      commentsUnsub = onSnapshot(q, snap => {
-        const list = document.getElementById("commentsList");
-        const comments = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        if (!comments.length) { list.innerHTML = `<p class="cm-empty">Nenhum comentário ainda 👇</p>`; return }
-        list.innerHTML = comments.map(c => {
-          const col = hcol(c.author || "?");
-          return `<div class="cm-item" id="cm-${c.id}">
-          ${c.authorPic ? `<div class="avatar-sm"><img src="${c.authorPic}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;"></div>` : `<div class="avatar-sm" style="background:${col}">${(c.author || "?").charAt(0).toUpperCase()}</div>`}
+  window._openComments=function(postId){
+    currentPostId=postId;
+    document.getElementById("commentsList").innerHTML=`<p class="cm-loading">Carregando...</p>`;
+    document.getElementById("cmOverlay").classList.add("on");
+    document.getElementById("cmSheet").classList.add("on");
+    document.body.style.overflow="hidden";
+    if(commentsUnsub)commentsUnsub();
+    const q=query(collection(db,"posts",postId,"comments"),orderBy("timestamp","asc"));
+    commentsUnsub=onSnapshot(q,snap=>{
+      const list=document.getElementById("commentsList");
+      const comments=snap.docs.map(d=>({id:d.id,...d.data()}));
+      if(!comments.length){list.innerHTML=`<p class="cm-empty">Nenhum comentário ainda 👇</p>`;return}
+      list.innerHTML=comments.map(c=>{
+        const col=hcol(c.author||"?");
+        return`<div class="cm-item" id="cm-${c.id}">
+          <div class="avatar-sm" style="background:${col}">${(c.author||"?").charAt(0).toUpperCase()}</div>
           <div class="cm-bubble">
-            <div class="cm-bubble-top"><span class="cm-author">${esc(c.author || "Anônimo")}</span>${isAdmin ? `<button class="cm-del" onclick="window._deleteComment('${postId}','${c.id}')">✕</button>` : ""}</div>
+            <div class="cm-bubble-top"><span class="cm-author">${esc(c.author||"Anônimo")}</span>${isAdmin?`<button class="cm-del" onclick="window._deleteComment('${postId}','${c.id}')">✕</button>`:""}</div>
             <span class="cm-text">${esc(c.text)}</span>
             <span class="cm-time">${ago(c.timestamp)}</span>
           </div>
         </div>`;
-        }).join("");
-        list.scrollTop = list.scrollHeight;
-      });
-    };
-
-    window._deleteComment = async function (postId, commentId) {
-      if (!isAdmin) return;
-      try { await deleteDoc(doc(db, "posts", postId, "comments", commentId)); await updateDoc(doc(db, "posts", postId), { commentCount: increment(-1) }) } catch (e) { console.error(e) }
-    };
-
-    function closeComments() {
-      document.getElementById("cmOverlay").classList.remove("on");
-      document.getElementById("cmSheet").classList.remove("on");
-      document.body.style.overflow = "";
-      document.getElementById("cmInput").value = "";
-      if (commentsUnsub) { commentsUnsub(); commentsUnsub = null; }
-      currentPostId = null;
-    }
-    window._closeComments = closeComments;
-
-    window._sendComment = async function () {
-      if (!currentPostId || !currentUser) return;
-      const input = document.getElementById("cmInput");
-      const text = input.value.trim();
-      if (!text) return;
-      const author = currentUser.displayName || currentUser.email.split("@")[0];
-      input.disabled = true;
-      try { await addDoc(collection(db, "posts", currentPostId, "comments"), { author, authorPic: window._customAvatar || null, text, timestamp: Date.now(), uid: currentUser.uid }); await updateDoc(doc(db, "posts", currentPostId), { commentCount: increment(1) }); input.value = ""; } catch (e) { console.error(e) }
-      input.disabled = false; input.focus();
-    };
-
-    document.addEventListener("DOMContentLoaded", () => {
-      document.getElementById("cmOverlay").onclick = closeComments;
-      document.getElementById("cmClose").onclick = closeComments;
-      document.getElementById("cmSendBtn").onclick = window._sendComment;
-      document.getElementById("cmInput").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); window._sendComment() } });
-      document.getElementById("logoutBtn").onclick = () => signOut(auth).then(() => window.location.href = "login.html");
-
-      // Foto de perfil
-      document.getElementById("userAvatar").onclick = () => document.getElementById("avatarInput").click();
-      document.getElementById("avatarInput").onchange = async e => {
-        const f = e.target.files[0]; if (!f) return;
-        const reader = new FileReader();
-        const originHtml = document.getElementById("userAvatar").innerHTML;
-        document.getElementById("userAvatar").innerHTML = "⌛";
-        reader.onload = async ev => {
-          try {
-            const b64 = await compress(ev.target.result, 150, 0.7);
-            try {
-              await setDoc(doc(db, "users", currentUser.uid), { avatar: b64 }, { merge: true });
-            } catch (e) {
-              await setDoc(doc(db, "posts", "avatar_" + currentUser.uid), { avatar: b64, isAvatar: true }, { merge: true });
-            }
-            window.location.reload();
-          } catch (err) {
-            console.error(err);
-            document.getElementById("userAvatar").innerHTML = originHtml;
-            alert("Erro ao salvar foto: " + err.message);
-          }
-        };
-        reader.readAsDataURL(f);
-      };
-
-      const cmSh = document.getElementById("cmSheet");
-      let ty0 = 0;
-      cmSh.addEventListener("touchstart", e => { ty0 = e.touches[0].clientY }, { passive: true });
-      cmSh.addEventListener("touchend", e => { if (e.changedTouches[0].clientY - ty0 > 80 && cmSh.scrollTop === 0) closeComments() }, { passive: true });
+      }).join("");
+      list.scrollTop=list.scrollHeight;
     });
-  </script>
-  <style>
-    :root {
-      --ink: #0D1117;
-      --ink2: #2C3038;
-      --ink3: #737880;
-      --rule: #E2E5E9;
-      --rule2: #F0F2F4;
-      --paper: #FFFFFF;
-      --paper2: #F7F8FA;
-      --accent: #C0392B;
-      --accent2: #E74C3C;
-      --serif: 'Libre Baskerville', Georgia, serif;
-      --sans: 'Source Sans 3', system-ui, sans-serif;
-      --safe-b: env(safe-area-inset-bottom, 0px);
-      --safe-t: env(safe-area-inset-top, 0px)
-    }
-
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      -webkit-tap-highlight-color: transparent
-    }
-
-    html {
-      font-size: 16px;
-      -webkit-text-size-adjust: 100%
-    }
-
-    body {
-      font-family: var(--sans);
-      background: var(--paper2);
-      color: var(--ink);
-      min-height: 100vh
-    }
-
-    img {
-      display: block;
-      max-width: 100%
-    }
-
-    a {
-      text-decoration: none
-    }
-
-    button {
-      cursor: pointer;
-      font-family: inherit
-    }
-
-    input,
-    textarea {
-      font-family: inherit;
-      font-size: 16px
-    }
-
-    .hdr {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background: var(--ink);
-      padding-top: var(--safe-t)
-    }
-
-    .hdr-inner {
-      max-width: 700px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 16px;
-      height: 52px;
-      gap: 10px
-    }
-
-    .back-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: #9AA0AA;
-      font-size: 13px;
-      font-weight: 600;
-      font-family: var(--sans)
-    }
-
-    .back-btn:hover {
-      color: #fff
-    }
-
-    .hdr-brand {
-      font-family: var(--serif);
-      font-size: 18px;
-      font-weight: 700;
-      color: #fff
-    }
-
-    .user-wrap {
-      display: flex;
-      align-items: center;
-      gap: 8px
-    }
-
-    .user-avatar {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: var(--serif);
-      font-weight: 700;
-      font-size: 12px;
-      color: #fff;
-      flex-shrink: 0
-    }
-
-    .user-label {
-      font-size: 11px;
-      color: #C9D1D9;
-      max-width: 70px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap
-    }
-
-    .admin-badge {
-      background: var(--accent);
-      color: #fff;
-      font-size: 9px;
-      font-weight: 700;
-      letter-spacing: 1px;
-      padding: 2px 7px;
-      border-radius: 10px;
-      text-transform: uppercase;
-      display: none;
-      align-items: center
-    }
-
-    .logout-btn {
-      background: none;
-      border: 1px solid #2A2F38;
-      border-radius: 8px;
-      color: #8A9099;
-      font-size: 11px;
-      padding: 5px 9px;
-      font-family: var(--sans)
-    }
-
-    .hdr-rule {
-      height: 3px;
-      background: var(--accent)
-    }
-
-    .subnav {
-      background: #161B22;
-      border-top: 1px solid #2A2F38;
-      padding: 8px 16px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      max-width: 700px;
-      margin: 0 auto
-    }
-
-    .subnav-tag {
-      font-size: 10px;
-      color: var(--accent2);
-      font-weight: 700;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      font-family: var(--sans)
-    }
-
-    .reporters-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 7px 14px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-      background: var(--accent);
-      color: #fff;
-      font-family: var(--sans)
-    }
-
-    .page-hdr {
-      max-width: 700px;
-      margin: 0 auto;
-      padding: 20px 16px 0
-    }
-
-    .page-title {
-      font-family: var(--serif);
-      font-size: 26px;
-      font-weight: 700;
-      color: var(--ink);
-      margin-bottom: 10px
-    }
-
-    .stats-row {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 16px
-    }
-
-    .stat-chip {
-      background: var(--paper);
-      border: 1px solid var(--rule);
-      border-radius: 8px;
-      padding: 10px 14px;
-      flex: 1;
-      text-align: center
-    }
-
-    .stat-num {
-      font-family: var(--serif);
-      font-size: 22px;
-      font-weight: 700;
-      color: var(--ink);
-      display: block;
-      line-height: 1
-    }
-
-    .stat-lbl {
-      font-size: 10px;
-      color: var(--ink3);
-      letter-spacing: .5px;
-      margin-top: 3px;
-      display: block;
-      text-transform: uppercase
-    }
-
-    .stat-chip--active .stat-num {
-      color: var(--accent)
-    }
-
-    .page-divider {
-      border: none;
-      border-top: 2px solid var(--ink);
-      margin: 0 16px
-    }
-
-    .main {
-      max-width: 700px;
-      margin: 0 auto;
-      padding: 20px 16px calc(40px + var(--safe-b))
-    }
-
-    .day-group {
-      margin-bottom: 28px
-    }
-
-    .day-label {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid var(--rule)
-    }
-
-    .day-label-text {
-      font-family: var(--serif);
-      font-size: 14px;
-      font-style: italic;
-      color: var(--ink2);
-      text-transform: capitalize
-    }
-
-    .day-label-count {
-      font-size: 11px;
-      color: var(--ink3);
-      background: var(--rule2);
-      border: 1px solid var(--rule);
-      border-radius: 12px;
-      padding: 2px 9px
-    }
-
-    .cards-wrap {
-      display: flex;
-      flex-direction: column
-    }
-
-    .card {
-      background: var(--paper);
-      border-bottom: 1px solid var(--rule);
-      animation: fadeUp .35s ease both;
-      transition: opacity .3s
-    }
-
-    .card:first-child {
-      border-top: 1px solid var(--rule);
-      border-radius: 10px 10px 0 0
-    }
-
-    .card:last-child {
-      border-radius: 0 0 10px 10px
-    }
-
-    .card:only-child {
-      border-radius: 10px
-    }
-
-    @keyframes fadeUp {
-      from {
-        opacity: 0;
-        transform: translateY(8px)
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0)
-      }
-    }
-
-    .card--expired {
-      opacity: .75
-    }
-
-    .card--expired .card-img img {
-      filter: grayscale(55%)
-    }
-
-    .card-img {
-      position: relative;
-      width: 100%;
-      aspect-ratio: 16/9;
-      overflow: hidden;
-      background: var(--rule2)
-    }
-
-    .card-img img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover
-    }
-
-    .expired-stamp {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: rgba(13, 17, 23, .72);
-      color: #fff;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 1.2px;
-      padding: 4px 9px;
-      border-radius: 4px;
-      text-transform: uppercase;
-      font-family: var(--sans)
-    }
-
-    .card-body {
-      padding: 13px 16px 12px
-    }
-
-    .card-meta {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-      margin-bottom: 9px
-    }
-
-    .avatar {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: var(--serif);
-      font-weight: 700;
-      font-size: 13px;
-      color: #fff
-    }
-
-    .author {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--ink);
-      display: block
-    }
-
-    .meta-time {
-      font-size: 11px;
-      color: var(--ink3)
-    }
-
-    .badge {
-      margin-left: auto;
-      flex-shrink: 0;
-      font-size: 9px;
-      font-weight: 700;
-      letter-spacing: 1.2px;
-      padding: 3px 8px;
-      border-radius: 12px;
-      text-transform: uppercase;
-      font-family: var(--sans)
-    }
-
-    .badge--active {
-      background: #EAF7F0;
-      color: #1A7A4A;
-      border: 1px solid #A8DFC4
-    }
-
-    .badge--expired {
-      background: var(--rule2);
-      color: var(--ink3);
-      border: 1px solid var(--rule)
-    }
-
-    .card-text {
-      font-family: var(--serif);
-      font-size: 14px;
-      line-height: 1.75;
-      color: var(--ink2);
-      margin-bottom: 12px
-    }
-
-    .card-actions {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap
-    }
-
-    .action-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 6px 12px;
-      border-radius: 20px;
-      border: 1px solid var(--rule);
-      background: transparent;
-      color: var(--ink3);
-      font-size: 12px;
-      font-weight: 600;
-      font-family: var(--sans)
-    }
-
-    .action-btn:active,
-    .action-btn:hover {
-      background: var(--rule2);
-      color: var(--ink)
-    }
-
-    .action-btn--liked {
-      color: var(--accent);
-      border-color: #F5C5C0;
-      background: #FEF0EE
-    }
-
-    .action-btn--delete {
-      color: #B83232;
-      border-color: #F5C5C0;
-      margin-left: auto
-    }
-
-    .action-btn--delete:hover {
-      background: #FEF0EE;
-      color: var(--accent)
-    }
-
-    .empty {
-      text-align: center;
-      padding: 60px 24px
-    }
-
-    .empty-ico {
-      font-size: 52px;
-      margin-bottom: 16px
-    }
-
-    .empty-ttl {
-      font-family: var(--serif);
-      font-size: 22px;
-      color: var(--ink);
-      margin-bottom: 8px
-    }
-
-    .empty-sub {
-      font-size: 14px;
-      color: var(--ink3);
-      line-height: 1.7;
-      margin-bottom: 28px
-    }
-
-    .empty-cta {
-      display: inline-block;
-      background: var(--ink);
-      color: #fff;
-      border-radius: 8px;
-      padding: 12px 24px;
-      font-family: var(--serif);
-      font-weight: 700;
-      font-size: 15px
-    }
-
-    .load-msg {
-      padding: 48px;
-      text-align: center;
-      font-size: 14px;
-      color: var(--ink3);
-      font-style: italic
-    }
-
-    .overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(13, 17, 23, .65);
-      z-index: 400;
-      opacity: 0;
-      transition: opacity .28s;
-      pointer-events: none
-    }
-
-    .overlay.on {
-      opacity: 1;
-      pointer-events: auto
-    }
-
-    .cm-sheet {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      z-index: 500;
-      background: var(--paper);
-      border-radius: 20px 20px 0 0;
-      padding-bottom: var(--safe-b);
-      transform: translateY(100%);
-      transition: transform .32s cubic-bezier(.32, .72, 0, 1);
-      max-height: 88vh;
-      display: flex;
-      flex-direction: column;
-      overscroll-behavior: contain
-    }
-
-    .cm-sheet.on {
-      transform: translateY(0)
-    }
-
-    .sheet-handle {
-      width: 36px;
-      height: 4px;
-      background: var(--rule);
-      border-radius: 2px;
-      margin: 12px auto 0
-    }
-
-    .cm-hdr {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 20px 12px;
-      border-bottom: 1px solid var(--rule);
-      flex-shrink: 0
-    }
-
-    .cm-title {
-      font-family: var(--serif);
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--ink)
-    }
-
-    .sheet-x {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: var(--rule2);
-      border: none;
-      color: var(--ink3);
-      font-size: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer
-    }
-
-    .cm-list {
-      flex: 1;
-      overflow-y: auto;
-      padding: 12px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      overscroll-behavior: contain
-    }
-
-    .cm-loading,
-    .cm-empty {
-      font-size: 13px;
-      color: var(--ink3);
-      text-align: center;
-      padding: 24px 0;
-      font-style: italic
-    }
-
-    .cm-item {
-      display: flex;
-      gap: 10px;
-      align-items: flex-start
-    }
-
-    .avatar-sm {
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: var(--serif);
-      font-weight: 700;
-      font-size: 12px;
-      color: #fff
-    }
-
-    .cm-bubble {
-      background: var(--rule2);
-      border-radius: 0 12px 12px 12px;
-      padding: 9px 12px;
-      flex: 1;
-      min-width: 0
-    }
-
-    .cm-bubble-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 3px
-    }
-
-    .cm-author {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--ink)
-    }
-
-    .cm-del {
-      background: none;
-      border: none;
-      color: var(--ink3);
-      font-size: 13px;
-      padding: 0 2px;
-      opacity: .5;
-      cursor: pointer
-    }
-
-    .cm-del:hover {
-      color: var(--accent);
-      opacity: 1
-    }
-
-    .cm-text {
-      font-size: 14px;
-      color: var(--ink2);
-      line-height: 1.55;
-      display: block;
-      word-break: break-word
-    }
-
-    .cm-time {
-      font-size: 10px;
-      color: var(--ink3);
-      display: block;
-      margin-top: 4px
-    }
-
-    .cm-input-row {
-      display: flex;
-      gap: 8px;
-      padding: 12px 16px;
-      border-top: 1px solid var(--rule);
-      flex-shrink: 0;
-      background: var(--paper)
-    }
-
-    .cm-text-input {
-      flex: 1;
-      border: 1.5px solid var(--rule);
-      border-radius: 10px;
-      padding: 10px 12px;
-      font-size: 14px;
-      color: var(--ink);
-      background: var(--paper);
-      outline: none;
-      resize: none;
-      -webkit-appearance: none;
-      line-height: 1.4
-    }
-
-    .cm-text-input:focus {
-      border-color: var(--ink)
-    }
-
-    .cm-send {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      background: var(--accent);
-      border: none;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      align-self: flex-end;
-      cursor: pointer
-    }
-
-    .cm-send:active {
-      transform: scale(.92)
-    }
-  </style>
+  };
+
+  window._deleteComment=async function(postId,commentId){
+    if(!isAdmin)return;
+    try{await deleteDoc(doc(db,"posts",postId,"comments",commentId));await updateDoc(doc(db,"posts",postId),{commentCount:increment(-1)})}catch(e){console.error(e)}
+  };
+
+  function closeComments(){
+    document.getElementById("cmOverlay").classList.remove("on");
+    document.getElementById("cmSheet").classList.remove("on");
+    document.body.style.overflow="";
+    document.getElementById("cmInput").value="";
+    if(commentsUnsub){commentsUnsub();commentsUnsub=null;}
+    currentPostId=null;
+  }
+  window._closeComments=closeComments;
+
+  window._sendComment=async function(){
+    if(!currentPostId||!currentUser)return;
+    const input=document.getElementById("cmInput");
+    const text=input.value.trim();
+    if(!text)return;
+    const author=currentUser.displayName||currentUser.email.split("@")[0];
+    input.disabled=true;
+    try{await addDoc(collection(db,"posts",currentPostId,"comments"),{author,text,timestamp:Date.now(),uid:currentUser.uid});await updateDoc(doc(db,"posts",currentPostId),{commentCount:increment(1)});input.value="";}catch(e){console.error(e)}
+    input.disabled=false;input.focus();
+  };
+
+  document.addEventListener("DOMContentLoaded",()=>{
+    document.getElementById("cmOverlay").onclick=closeComments;
+    document.getElementById("cmClose").onclick=closeComments;
+    document.getElementById("cmSendBtn").onclick=window._sendComment;
+    document.getElementById("cmInput").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();window._sendComment()}});
+    document.getElementById("logoutBtn").onclick=()=>signOut(auth).then(()=>window.location.href="login.html");
+    const cmSh=document.getElementById("cmSheet");
+    let ty0=0;
+    cmSh.addEventListener("touchstart",e=>{ty0=e.touches[0].clientY},{passive:true});
+    cmSh.addEventListener("touchend",e=>{if(e.changedTouches[0].clientY-ty0>80&&cmSh.scrollTop===0)closeComments()},{passive:true});
+  });
+</script>
+<style>
+:root{--ink:#0D1117;--ink2:#2C3038;--ink3:#737880;--rule:#E2E5E9;--rule2:#F0F2F4;--paper:#FFFFFF;--paper2:#F7F8FA;--accent:#C0392B;--accent2:#E74C3C;--serif:'Libre Baskerville',Georgia,serif;--sans:'Source Sans 3',system-ui,sans-serif;--safe-b:env(safe-area-inset-bottom,0px);--safe-t:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{font-size:16px;-webkit-text-size-adjust:100%}
+body{font-family:var(--sans);background:var(--paper2);color:var(--ink);min-height:100vh}
+img{display:block;max-width:100%}
+a{text-decoration:none}
+button{cursor:pointer;font-family:inherit}
+input,textarea{font-family:inherit;font-size:16px}
+.hdr{position:sticky;top:0;z-index:100;background:var(--ink);padding-top:var(--safe-t)}
+.hdr-inner{max-width:700px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 16px;height:52px;gap:10px}
+.back-btn{display:inline-flex;align-items:center;gap:6px;color:#9AA0AA;font-size:13px;font-weight:600;font-family:var(--sans)}
+.back-btn:hover{color:#fff}
+.hdr-brand{font-family:var(--serif);font-size:18px;font-weight:700;color:#fff}
+.user-wrap{display:flex;align-items:center;gap:8px}
+.user-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:12px;color:#fff;flex-shrink:0}
+.user-label{font-size:11px;color:#C9D1D9;max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.admin-badge{background:var(--accent);color:#fff;font-size:9px;font-weight:700;letter-spacing:1px;padding:2px 7px;border-radius:10px;text-transform:uppercase;display:none;align-items:center}
+.logout-btn{background:none;border:1px solid #2A2F38;border-radius:8px;color:#8A9099;font-size:11px;padding:5px 9px;font-family:var(--sans)}
+.hdr-rule{height:3px;background:var(--accent)}
+.subnav{background:#161B22;border-top:1px solid #2A2F38;padding:8px 16px;display:flex;align-items:center;justify-content:space-between;max-width:700px;margin:0 auto}
+.subnav-tag{font-size:10px;color:var(--accent2);font-weight:700;letter-spacing:2px;text-transform:uppercase;font-family:var(--sans)}
+.reporters-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:20px;font-size:12px;font-weight:600;background:var(--accent);color:#fff;font-family:var(--sans)}
+.page-hdr{max-width:700px;margin:0 auto;padding:20px 16px 0}
+.page-title{font-family:var(--serif);font-size:26px;font-weight:700;color:var(--ink);margin-bottom:10px}
+.stats-row{display:flex;gap:12px;margin-bottom:16px}
+.stat-chip{background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:10px 14px;flex:1;text-align:center}
+.stat-num{font-family:var(--serif);font-size:22px;font-weight:700;color:var(--ink);display:block;line-height:1}
+.stat-lbl{font-size:10px;color:var(--ink3);letter-spacing:.5px;margin-top:3px;display:block;text-transform:uppercase}
+.stat-chip--active .stat-num{color:var(--accent)}
+.page-divider{border:none;border-top:2px solid var(--ink);margin:0 16px}
+.main{max-width:700px;margin:0 auto;padding:20px 16px calc(40px + var(--safe-b))}
+.day-group{margin-bottom:28px}
+.day-label{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--rule)}
+.day-label-text{font-family:var(--serif);font-size:14px;font-style:italic;color:var(--ink2);text-transform:capitalize}
+.day-label-count{font-size:11px;color:var(--ink3);background:var(--rule2);border:1px solid var(--rule);border-radius:12px;padding:2px 9px}
+.cards-wrap{display:flex;flex-direction:column}
+.card{background:var(--paper);border-bottom:1px solid var(--rule);animation:fadeUp .35s ease both;transition:opacity .3s}
+.card:first-child{border-top:1px solid var(--rule);border-radius:10px 10px 0 0}
+.card:last-child{border-radius:0 0 10px 10px}
+.card:only-child{border-radius:10px}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.card--expired{opacity:.75}
+.card--expired .card-img img{filter:grayscale(55%)}
+.card-img{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;background:var(--rule2)}
+.card-img img{width:100%;height:100%;object-fit:cover}
+.expired-stamp{position:absolute;top:10px;right:10px;background:rgba(13,17,23,.72);color:#fff;font-size:10px;font-weight:700;letter-spacing:1.2px;padding:4px 9px;border-radius:4px;text-transform:uppercase;font-family:var(--sans)}
+.card-body{padding:13px 16px 12px}
+.card-meta{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+.avatar{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:13px;color:#fff}
+.author{font-size:13px;font-weight:600;color:var(--ink);display:block}
+.meta-time{font-size:11px;color:var(--ink3)}
+.badge{margin-left:auto;flex-shrink:0;font-size:9px;font-weight:700;letter-spacing:1.2px;padding:3px 8px;border-radius:12px;text-transform:uppercase;font-family:var(--sans)}
+.badge--active{background:#EAF7F0;color:#1A7A4A;border:1px solid #A8DFC4}
+.badge--expired{background:var(--rule2);color:var(--ink3);border:1px solid var(--rule)}
+.card-text{font-family:var(--serif);font-size:14px;line-height:1.75;color:var(--ink2);margin-bottom:12px}
+.card-actions{display:flex;gap:6px;flex-wrap:wrap}
+.action-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:20px;border:1px solid var(--rule);background:transparent;color:var(--ink3);font-size:12px;font-weight:600;font-family:var(--sans)}
+.action-btn:active,.action-btn:hover{background:var(--rule2);color:var(--ink)}
+.action-btn--liked{color:var(--accent);border-color:#F5C5C0;background:#FEF0EE}
+.action-btn--delete{color:#B83232;border-color:#F5C5C0;margin-left:auto}
+.action-btn--delete:hover{background:#FEF0EE;color:var(--accent)}
+.empty{text-align:center;padding:60px 24px}
+.empty-ico{font-size:52px;margin-bottom:16px}
+.empty-ttl{font-family:var(--serif);font-size:22px;color:var(--ink);margin-bottom:8px}
+.empty-sub{font-size:14px;color:var(--ink3);line-height:1.7;margin-bottom:28px}
+.empty-cta{display:inline-block;background:var(--ink);color:#fff;border-radius:8px;padding:12px 24px;font-family:var(--serif);font-weight:700;font-size:15px}
+.load-msg{padding:48px;text-align:center;font-size:14px;color:var(--ink3);font-style:italic}
+.overlay{position:fixed;inset:0;background:rgba(13,17,23,.65);z-index:400;opacity:0;transition:opacity .28s;pointer-events:none}
+.overlay.on{opacity:1;pointer-events:auto}
+.cm-sheet{position:fixed;bottom:0;left:0;right:0;z-index:500;background:var(--paper);border-radius:20px 20px 0 0;padding-bottom:var(--safe-b);transform:translateY(100%);transition:transform .32s cubic-bezier(.32,.72,0,1);max-height:88vh;display:flex;flex-direction:column;overscroll-behavior:contain}
+.cm-sheet.on{transform:translateY(0)}
+.sheet-handle{width:36px;height:4px;background:var(--rule);border-radius:2px;margin:12px auto 0}
+.cm-hdr{display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid var(--rule);flex-shrink:0}
+.cm-title{font-family:var(--serif);font-size:18px;font-weight:700;color:var(--ink)}
+.sheet-x{width:32px;height:32px;border-radius:50%;background:var(--rule2);border:none;color:var(--ink3);font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.cm-list{flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:12px;overscroll-behavior:contain}
+.cm-loading,.cm-empty{font-size:13px;color:var(--ink3);text-align:center;padding:24px 0;font-style:italic}
+.cm-item{display:flex;gap:10px;align-items:flex-start}
+.avatar-sm{width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:12px;color:#fff}
+.cm-bubble{background:var(--rule2);border-radius:0 12px 12px 12px;padding:9px 12px;flex:1;min-width:0}
+.cm-bubble-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}
+.cm-author{font-size:12px;font-weight:700;color:var(--ink)}
+.cm-del{background:none;border:none;color:var(--ink3);font-size:13px;padding:0 2px;opacity:.5;cursor:pointer}
+.cm-del:hover{color:var(--accent);opacity:1}
+.cm-text{font-size:14px;color:var(--ink2);line-height:1.55;display:block;word-break:break-word}
+.cm-time{font-size:10px;color:var(--ink3);display:block;margin-top:4px}
+.cm-input-row{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--rule);flex-shrink:0;background:var(--paper)}
+.cm-text-input{flex:1;border:1.5px solid var(--rule);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--ink);background:var(--paper);outline:none;resize:none;-webkit-appearance:none;line-height:1.4}
+.cm-text-input:focus{border-color:var(--ink)}
+.cm-send{width:40px;height:40px;border-radius:50%;background:var(--accent);border:none;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;align-self:flex-end;cursor:pointer}
+.cm-send:active{transform:scale(.92)}
+</style>
 </head>
-
 <body>
-  <header class="hdr">
-    <div class="hdr-inner">
-      <a href="index.html" class="back-btn">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-          stroke-linecap="round">
-          <polyline points="15 18 9 12 15 6" />
-        </svg>
-        Início
+<header class="hdr">
+  <div class="hdr-inner">
+    <a href="index.html" class="back-btn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Início
+    </a>
+    <span class="hdr-brand">GAZETA</span>
+    <div class="user-wrap">
+      <div class="user-avatar" id="userAvatar">?</div>
+      <span class="user-label" id="userLabel"></span>
+      <span class="admin-badge" id="adminBadge">Admin</span>
+      <button class="logout-btn" id="logoutBtn">Sair</button>
+    </div>
+  </div>
+  <div style="max-width:700px;margin:0 auto">
+    <div class="subnav">
+      <span class="subnav-tag">Arquivo completo</span>
+      <a href="https://anaotrevoso.github.io/site-do-grupo/" target="_blank" rel="noopener" class="reporters-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg>
+        Repórteres
       </a>
-      <span class="hdr-brand">GAZETA</span>
-      <div class="user-wrap">
-        <div class="user-avatar" id="userAvatar">?</div>
-        <span class="user-label" id="userLabel"></span>
-        <span class="admin-badge" id="adminBadge">Admin</span>
-        <button class="logout-btn" id="logoutBtn">Sair</button>
-      </div>
-    </div>
-    <div style="max-width:700px;margin:0 auto">
-      <div class="subnav">
-        <span class="subnav-tag">Arquivo completo</span>
-        <a href="https://anaotrevoso.github.io/site-do-grupo/" target="_blank" rel="noopener" class="reporters-btn">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round">
-            <circle cx="12" cy="8" r="4" />
-            <path d="M6 20v-2a6 6 0 0 1 12 0v2" />
-          </svg>
-          Repórteres
-        </a>
-      </div>
-    </div>
-    <div class="hdr-rule"></div>
-  </header>
-  <div class="page-hdr">
-    <h1 class="page-title">Histórico de matérias</h1>
-    <div class="stats-row">
-      <div class="stat-chip stat-chip--active"><span class="stat-num" id="activeCount">—</span><span
-          class="stat-lbl">Ativas agora</span></div>
-      <div class="stat-chip"><span class="stat-num" id="totalCount">—</span><span class="stat-lbl">Total
-          publicadas</span></div>
     </div>
   </div>
-  <hr class="page-divider" />
-  <main class="main">
-    <p class="load-msg" id="loadMsg">Carregando histórico...</p>
-    <div id="grid"></div>
-  </main>
-  <div class="overlay" id="cmOverlay"></div>
-  <div class="cm-sheet" id="cmSheet" role="dialog" aria-modal="true">
-    <div class="sheet-handle"></div>
-    <div class="cm-hdr"><span class="cm-title">Comentários</span><button class="sheet-x" id="cmClose">✕</button></div>
-    <div class="cm-list" id="commentsList"></div>
-    <div class="cm-input-row">
-      <textarea class="cm-text-input" id="cmInput" placeholder="Escreva um comentário..." rows="1"
-        maxlength="300"></textarea>
-      <button class="cm-send" id="cmSendBtn" aria-label="Enviar">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-          stroke-linecap="round">
-          <line x1="22" y1="2" x2="11" y2="13" />
-          <polygon points="22 2 15 22 11 13 2 9 22 2" />
-        </svg>
-      </button>
-    </div>
+  <div class="hdr-rule"></div>
+</header>
+<div class="page-hdr">
+  <h1 class="page-title">Histórico de matérias</h1>
+  <div class="stats-row">
+    <div class="stat-chip stat-chip--active"><span class="stat-num" id="activeCount">—</span><span class="stat-lbl">Ativas agora</span></div>
+    <div class="stat-chip"><span class="stat-num" id="totalCount">—</span><span class="stat-lbl">Total publicadas</span></div>
   </div>
-  <input type="file" id="avatarInput" accept="image/*" style="display:none" />
+</div>
+<hr class="page-divider"/>
+<main class="main">
+  <p class="load-msg" id="loadMsg">Carregando histórico...</p>
+  <div id="grid"></div>
+</main>
+<div class="overlay" id="cmOverlay"></div>
+<div class="cm-sheet" id="cmSheet" role="dialog" aria-modal="true">
+  <div class="sheet-handle"></div>
+  <div class="cm-hdr"><span class="cm-title">Comentários</span><button class="sheet-x" id="cmClose">✕</button></div>
+  <div class="cm-list" id="commentsList"></div>
+  <div class="cm-input-row">
+    <textarea class="cm-text-input" id="cmInput" placeholder="Escreva um comentário..." rows="1" maxlength="300"></textarea>
+    <button class="cm-send" id="cmSendBtn" aria-label="Enviar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </button>
+  </div>
+</div>
 </body>
-
 </html>
